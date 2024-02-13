@@ -28,10 +28,12 @@ class Attn(nn.Module):
     def forward(self, hidden, encoder_outputs):
         # hidden shape: (1, batch_size, hidden_size)
         # encoder_outputs shape: (seq_len, batch_size, hidden_size)
-        # We need to transpose encoder_outputs to (batch_size, seq_len, hidden_size)
+        # Transpose encoder_outputs to (batch_size, seq_len, hidden_size)
         encoder_outputs = encoder_outputs.transpose(0, 1)
-        # Now we perform batch matrix multiplication
-        attn_energies = torch.bmm(encoder_outputs, hidden.transpose(0, 1).transpose(1, 2)).squeeze(2)
+        # Transpose hidden to (batch_size, hidden_size, 1)
+        hidden = hidden.transpose(0, 1).transpose(1, 2)
+        # Perform batch matrix multiplication
+        attn_energies = torch.bmm(encoder_outputs, hidden).squeeze(2)
         return F.softmax(attn_energies, dim=1).unsqueeze(1)
 
 # Define the Decoder with Attention
@@ -53,7 +55,7 @@ class AttnDecoderRNN(nn.Module):
         embedded = F.dropout(embedded, self.dropout_p)
 
         attn_weights = self.attn(hidden, encoder_outputs)
-        context = attn_weights.bmm(encoder_outputs)
+        context = attn_weights.bmm(encoder_outputs.transpose(0, 1))
         rnn_input = torch.cat((embedded, context), 2)
 
         output, hidden = self.gru(rnn_input, hidden)
@@ -92,7 +94,7 @@ decoder_input = torch.tensor([[0]], dtype=torch.long)  # SOS_token
 decoder_hidden = encoder_hidden  # Use the last hidden state from the encoder to start the decoder
 
 decoded_words = []
-decoder_attentions = torch.zeros(input_seq.size(0), input_seq.size(0))
+decoder_attentions = torch.zeros(target_seq.size(0), input_seq.size(0))
 
 for di in range(target_seq.size(0)):
     decoder_output, decoder_hidden, decoder_attention = decoder(decoder_input, decoder_hidden, encoder_outputs)
@@ -107,3 +109,5 @@ for di in range(target_seq.size(0)):
     decoder_input = topi.squeeze().detach()  # detach from history as input
 
 # The decoded_words list now contains the predicted output sequence
+
+print("Next number in the sequence:", decoded_words)
